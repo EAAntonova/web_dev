@@ -46,7 +46,7 @@ def create_project():
         
         # Валидация
         if not name or not start_date_str:
-            flash('Название и дата начала обязательны!', 'danger')
+            flash('Заполните название и дату начала.', 'danger')
             return render_template('project_form.html', project=None,
                                  STATUS_CHOICES=STATUS_CHOICES, PRIORITY_CHOICES=PRIORITY_CHOICES)
         

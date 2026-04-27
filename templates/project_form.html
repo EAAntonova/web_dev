@@ -191,7 +191,7 @@
         let html = '';
         tasks.forEach((task, index) => {
             const taskClass = task.isNew ? 'new-task' : 'existing-task';
-            const taskTypeLabel = task.isNew ? '🆕 Новая задача' : '📌 Существующая задача';
+            const taskTypeLabel = task.isNew ? 'Новая задача' : 'Существующая задача';
             
             html += `
                 <div class="task-card ${taskClass}" data-task-index="${index}">
@@ -279,7 +279,6 @@
             }
         }
         
-        // Фильтруем задачи с пустыми названиями и подготавливаем данные для отправки
         const validTasks = tasks.filter(task => task.title && task.title.trim());
         const tasksForSubmit = validTasks.map(task => ({
             id: task.id,
@@ -293,7 +292,7 @@
         document.getElementById('tasksJson').value = JSON.stringify(tasksForSubmit);
     });
     
-    // Валидация дат
+    // Проверка дат
     const form = document.getElementById('projectForm');
     form.addEventListener('submit', function(e) {
         const startDate = document.getElementById('start_date').value;
