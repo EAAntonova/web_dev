@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - Управление проектами{% endblock %}
+
+{% block extra_css %}
+<style>
+    .task-checkbox {
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        accent-color: #2A7DE1;
+    }
+    
+    .task-completed {
+        opacity: 0.7;
+        background-color: #e8f5e9;
+    }
+    
+    .task-completed .task-title {
+        text-decoration: line-through;
+        color: #6c757d;
+    }
+    
+    .progress-update {
+        transition: all 0.5s ease;
+    }
+    
+    .task-status-badge {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .task-status-badge:hover {
+        transform: scale(1.05);
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    
+    .progress-updated {
+        animation: pulse 0.5s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Главная</a></li>
+                <li class="breadcrumb-item active">{{ project.name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1 class="display-5">{{ project.name }}</h1>
+        <p class="lead">{{ project.description or 'Описание отсутствует' }}</p>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('edit_project', project_id=project.id) }}" class="btn btn-warning">
+            <i class="bi bi-pencil"></i> Редактировать проект
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Информация о проекте</h6>
+                <p><i class="bi bi-calendar"></i> <strong>Дата начала:</strong> {{ project.start_date.strftime('%d.%m.%Y') }}</p>
+                {% if project.end_date %}
+                <p><i class="bi bi-calendar-check"></i> <strong>Дата окончания:</strong> {{ project.end_date.strftime('%d.%m.%Y') }}</p>
+                {% endif %}
+                <p><i class="bi bi-tasks"></i> <strong>Всего задач:</strong> <span id="totalTasks">{{ tasks|length }}</span></p>
+                <p><i class="bi bi-check-circle"></i> <strong>Выполнено:</strong> <span id="completedTasks">{{ tasks|selectattr('status', 'equalto', 'Завершена')|list|length }}</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Общий прогресс</h6>
+                <div class="progress mb-2" style="height: 30px;">
+                    <div class="progress-bar bg-primary progress-update" id="progressBar" 
+                         style="width: {{ project.get_progress() }}%; transition: width 0.5s ease;">
+                        <span id="progressPercent">{{ project.get_progress() }}%</span>
+                    </div>
+                </div>
+                <div class="text-center mt-2">
+                    <a href="{{ url_for('create_task', project_id=project.id) }}" class="btn btn-success">
+                        <i class="bi bi-plus-lg"></i> Добавить задачу
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <h3>Список задач</h3>
+        {% if tasks %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="tasksTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px">✓</th>
+                            <th>Название</th>
+                            <th>Описание</th>
+                            <th>Статус</th>
+                            <th>Приоритет</th>
+                            <th>Исполнитель</th>
+                            <th style="width: 100px">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr id="task-{{ task.id }}" class="{% if task.status == 'Завершена' %}task-completed{% endif %}">
+                            <td class="text-center">
+                                <input type="checkbox" class="task-checkbox" 
+                                       data-task-id="{{ task.id }}"
+                                       {% if task.status == 'Завершена' %}checked{% endif %}>
+                            </td>
+                            <td class="task-title">{{ task.title }}</td>
+                            <td>{{ task.description[:50] }}{% if task.description and task.description|length > 50 %}...{% endif %}</td>
+                            <td>
+                                <select class="form-select form-select-sm task-status-select" 
+                                        data-task-id="{{ task.id }}"
+                                        style="width: auto; min-width: 120px;">
+                                    {% for status in STATUS_CHOICES %}
+                                    <option value="{{ status }}" {% if task.status == status %}selected{% endif %}>
+                                        {{ status }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <span class="badge-status 
+                                    {% if task.priority == 'Высокий' %}bg-danger
+                                    {% elif task.priority == 'Средний' %}bg-warning
+                                    {% else %}bg-info{% endif %} text-white">
+                                    {{ task.priority }}
+                                </span>
+                            </td>
+                            <td><i class="bi bi-person"></i> {{ task.assignee }}</td>
+                            <td>
+                                <a href="{{ url_for('edit_task', task_id=task.id) }}" class="btn btn-sm btn-warning" title="Редактировать">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger" title="Удалить" 
+                                        data-bs-toggle="modal" data-bs-target="#deleteTaskModal{{ task.id }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        
+                        <!-- Модальное окно для удаления задачи -->
+                        <div class="modal fade" id="deleteTaskModal{{ task.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Подтверждение удаления задачи</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Вы уверены, что хотите удалить задачу <strong>"{{ task.title }}"</strong>?</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                        <form action="{{ url_for('delete_task', task_id=task.id) }}" method="POST" style="display: inline;">
+                                            <button type="submit" class="btn btn-danger">Удалить</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> В этом проекте пока нет задач.
+                <a href="{{ url_for('create_task', project_id=project.id) }}" class="alert-link">Создать первую задачу</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Функция обновления прогресса на странице
+function updateProjectProgress(progress) {
+    const progressBar = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    
+    if (progressBar && progressPercent) {
+        progressBar.style.width = progress + '%';
+        progressPercent.textContent = progress + '%';
+        progressBar.classList.add('progress-updated');
+        setTimeout(() => {
+            progressBar.classList.remove('progress-updated');
+        }, 500);
+    }
+}
+
+// Функция обновления счетчиков задач
+function updateTaskCounters() {
+    const totalTasks = document.querySelectorAll('#tasksTable tbody tr').length;
+    const completedTasks = document.querySelectorAll('#tasksTable tbody tr.task-completed').length;
+    
+    const totalSpan = document.getElementById('totalTasks');
+    const completedSpan = document.getElementById('completedTasks');
+    
+    if (totalSpan) totalSpan.textContent = totalTasks;
+    if (completedSpan) completedSpan.textContent = completedTasks;
+}
+
+// Функция показа уведомлений
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        animation: slideIn 0.3s ease;
+    `;
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Добавляем CSS анимацию
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// Флаг для предотвращения множественных запросов
+let isUpdating = false;
+
+// Обработка чекбоксов (быстрое переключение статуса)
+document.querySelectorAll('.task-checkbox').forEach(checkbox => {
+    // Удаляем старые обработчики, чтобы избежать дублирования
+    const newCheckbox = checkbox.cloneNode(true);
+    checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+    
+    newCheckbox.addEventListener('change', function(e) {
+        // Предотвращаем всплытие события
+        e.stopPropagation();
+        
+        // Если уже идет обновление, игнорируем
+        if (isUpdating) {
+            this.checked = !this.checked;
+            return;
+        }
+        
+        const taskId = this.dataset.taskId;
+        const row = document.getElementById(`task-${taskId}`);
+        const wasChecked = this.checked;
+        
+        // Блокируем повторные клики
+        isUpdating = true;
+        
+        // Оптимистичное обновление UI
+        if (wasChecked) {
+            row.classList.add('task-completed');
+            const statusSelect = row.querySelector('.task-status-select');
+            if (statusSelect) statusSelect.value = 'Завершена';
+        } else {
+            row.classList.remove('task-completed');
+            const statusSelect = row.querySelector('.task-status-select');
+            if (statusSelect) statusSelect.value = 'Новая';
+        }
+        
+        updateTaskCounters();
+        
+        // Отправляем запрос на сервер
+        fetch(`/task/${taskId}/toggle`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Обновляем прогресс проекта
+                updateProjectProgress(data.project_progress);
+                
+                // Синхронизируем статус в выпадающем списке
+                const statusSelect = row.querySelector('.task-status-select');
+                if (statusSelect) statusSelect.value = data.new_status;
+                
+                // Показываем уведомление
+                const message = data.new_status === 'Завершена' ? '✅ Задача выполнена!' : '🔄 Задача возвращена в работу';
+                showNotification(message, 'success');
+            } else {
+                // Откатываем изменения при ошибке
+                if (wasChecked) {
+                    row.classList.remove('task-completed');
+                    this.checked = false;
+                } else {
+                    row.classList.add('task-completed');
+                    this.checked = true;
+                }
+                updateTaskCounters();
+                showNotification('Ошибка при обновлении статуса', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Откатываем изменения при ошибке
+            if (wasChecked) {
+                row.classList.remove('task-completed');
+                this.checked = false;
+            } else {
+                row.classList.add('task-completed');
+                this.checked = true;
+            }
+            updateTaskCounters();
+            showNotification('Ошибка соединения с сервером', 'danger');
+        })
+        .finally(() => {
+            // Разблокируем после завершения запроса
+            setTimeout(() => {
+                isUpdating = false;
+            }, 500);
+        });
+    });
+});
+
+// Обработка изменения статуса из выпадающего списка
+document.querySelectorAll('.task-status-select').forEach(select => {
+    // Удаляем старые обработчики
+    const newSelect = select.cloneNode(true);
+    select.parentNode.replaceChild(newSelect, select);
+    
+    newSelect.addEventListener('change', function() {
+        const taskId = this.dataset.taskId;
+        const newStatus = this.value;
+        const row = document.getElementById(`task-${taskId}`);
+        const checkbox = row.querySelector('.task-checkbox');
+        
+        // Блокируем обновления
+        if (isUpdating) return;
+        isUpdating = true;
+        
+        // Обновляем UI
+        if (newStatus === 'Завершена') {
+            row.classList.add('task-completed');
+            if (checkbox) checkbox.checked = true;
+        } else {
+            row.classList.remove('task-completed');
+            if (checkbox) checkbox.checked = false;
+        }
+        
+        updateTaskCounters();
+        
+        // Отправляем запрос на сервер
+        fetch(`/task/${taskId}/update-status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: `status=${encodeURIComponent(newStatus)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateProjectProgress(data.project_progress);
+                showNotification(`Статус задачи изменён на "${newStatus}"`, 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Ошибка при обновлении статуса', 'danger');
+        })
+        .finally(() => {
+            setTimeout(() => {
+                isUpdating = false;
+            }, 500);
+        });
+    });
+});
+
+// Обновляем счетчики при загрузке страницы
+updateTaskCounters();
+</script>
+{% endblock %}
